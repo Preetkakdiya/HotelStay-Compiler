@@ -21,8 +21,8 @@ The language performs:
 
 ---
 
-## 🔑 Custom Keywords (10 Keywords)
-The faculty requires at least **7 custom keywords** for a 3-member group. **HotelStay includes 10 custom keywords**:
+## 🔑 Custom Keywords (16 Keywords)
+The faculty requires at least **7 custom keywords** for a 3-member group. **HotelStay includes 16 custom keywords**:
 
 | Keyword | Description | Example |
 | :--- | :--- | :--- |
@@ -33,9 +33,15 @@ The faculty requires at least **7 custom keywords** for a 3-member group. **Hote
 | `DISCOUNT` | Applies percentage promotional discount | `DISCOUNT Aarav 10;` |
 | `TAX` | Configures GST/tax percentage (default: 12%) | `TAX Aarav 18;` |
 | `CHECKOUT` | Computes final bill and generates a formatted tax invoice | `CHECKOUT Aarav;` |
-| `STATUS` | Displays current hotel room occupancy log | `STATUS;` |
+| `STATUS` | Displays current hotel room occupancy log and live inventory | `STATUS;` |
 | `PRINT` | Prints text announcements or arithmetic results | `PRINT "Welcome to Grand Horizon";` |
 | `RESET` | Removes guest record from active registry | `RESET Aarav;` |
+| `MAKE` | Declares a custom integer variable in symbol table | `MAKE stayDays;` |
+| `TAKE` | Accepts interactive integer input from user (`scanf`) | `TAKE stayDays;` |
+| `WHEN` | Conditional branching (`if` statement) | `WHEN (stayDays >= 4) { ... }` |
+| `OTHERWISE` | Alternative conditional branch (`else` statement) | `OTHERWISE { ... }` |
+| `REPEAT` | Iterative loop construct (`while` loop) | `REPEAT (count <= 3) { ... }` |
+| `STOP` | Terminates script execution cleanly | `STOP;` |
 
 ---
 

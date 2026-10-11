@@ -79,6 +79,7 @@ extern FILE *yyin;
 
 #define MAX_GUESTS 50
 #define MAX_AMENITIES 20
+#define MAX_VARS 100
 
 /* Fixed Room Inventory Caps */
 #define TOTAL_STANDARD 20
@@ -86,6 +87,8 @@ extern FILE *yyin;
 #define TOTAL_SUITE 10
 #define TOTAL_PRESIDENTIAL 5
 #define TOTAL_HOTEL_ROOMS 50
+
+/* ---------------- DATA STRUCTURES ---------------- */
 
 typedef struct {
     char name[50];
@@ -107,7 +110,72 @@ typedef struct {
 GuestRecord guestTable[MAX_GUESTS];
 int guestCount = 0;
 
-/* ---------------- INVENTORY & SYMBOL TABLE HELPERS ---------------- */
+typedef struct {
+    char name[50];
+    int value;
+    int isDeclared;
+} VarSymbol;
+
+VarSymbol varTable[MAX_VARS];
+int varCount = 0;
+
+/* ---------------- AST DEFINITIONS ---------------- */
+
+typedef enum {
+    EXPR_NUM,
+    EXPR_VAR,
+    EXPR_ADD,
+    EXPR_SUB,
+    EXPR_MUL,
+    EXPR_DIV,
+    EXPR_EQ,
+    EXPR_NEQ,
+    EXPR_LT,
+    EXPR_GT,
+    EXPR_LTE,
+    EXPR_GTE
+} ExprType;
+
+typedef struct ExprNode {
+    ExprType type;
+    int num;
+    char varName[50];
+    struct ExprNode *left;
+    struct ExprNode *right;
+} ExprNode;
+
+typedef enum {
+    STMT_GUEST,
+    STMT_ROOM,
+    STMT_NIGHTS,
+    STMT_AMENITY,
+    STMT_DISCOUNT,
+    STMT_TAX,
+    STMT_CHECKOUT,
+    STMT_STATUS,
+    STMT_PRINT_STR,
+    STMT_PRINT_EXPR,
+    STMT_RESET,
+    STMT_MAKE,
+    STMT_ASSIGN,
+    STMT_TAKE,
+    STMT_WHEN,
+    STMT_REPEAT,
+    STMT_BLOCK,
+    STMT_STOP
+} StmtType;
+
+typedef struct StmtNode {
+    StmtType type;
+    char id1[50];
+    char id2[100];
+    ExprNode *expr1;
+    struct StmtNode *body;
+    struct StmtNode *elseBody;
+    struct StmtNode *next;
+} StmtNode;
+
+/* ---------------- SYMBOL TABLE ROUTINES ---------------- */
 
 int findGuest(const char *name) {
     for (int i = 0; i < guestCount; i++) {
@@ -119,17 +187,17 @@ int findGuest(const char *name) {
 }
 
 int getCategoryTotal(const char *roomType) {
-    if (strcmp(roomType, "STANDARD") == 0) return TOTAL_STANDARD;
-    if (strcmp(roomType, "DELUXE") == 0) return TOTAL_DELUXE;
-    if (strcmp(roomType, "SUITE") == 0) return TOTAL_SUITE;
-    if (strcmp(roomType, "PRESIDENTIAL") == 0) return TOTAL_PRESIDENTIAL;
-    return 10; // default cap for custom rooms
+    if (strcasecmp(roomType, "STANDARD") == 0) return TOTAL_STANDARD;
+    if (strcasecmp(roomType, "DELUXE") == 0) return TOTAL_DELUXE;
+    if (strcasecmp(roomType, "SUITE") == 0) return TOTAL_SUITE;
+    if (strcasecmp(roomType, "PRESIDENTIAL") == 0) return TOTAL_PRESIDENTIAL;
+    return 10;
 }
 
 int getCategoryOccupied(const char *roomType) {
     int count = 0;
     for (int i = 0; i < guestCount; i++) {
-        if (!guestTable[i].isCheckedOut && strcmp(guestTable[i].roomType, roomType) == 0) {
+        if (!guestTable[i].isCheckedOut && strcasecmp(guestTable[i].roomType, roomType) == 0) {
             count++;
         }
     }
@@ -152,7 +220,7 @@ void registerGuest(const char *name) {
     guestTable[guestCount].nights = 1;
     guestTable[guestCount].amenityCount = 0;
     guestTable[guestCount].discountPercent = 0;
-    guestTable[guestCount].taxPercent = 12; // Standard 12% GST
+    guestTable[guestCount].taxPercent = 12; // 12% GST
     guestTable[guestCount].isCheckedOut = 0;
 
     printf("[Registration] Guest '%s' checked in. Ready for room assignment.\n", name);
@@ -173,8 +241,7 @@ void assignRoom(const char *name, const char *roomType, int rate) {
     int occupied = getCategoryOccupied(roomType);
     int total = getCategoryTotal(roomType);
 
-    // If guest is already holding this room type, allow re-assignment/rate update
-    if (strcmp(guestTable[idx].roomType, roomType) != 0 && occupied >= total) {
+    if (strcasecmp(guestTable[idx].roomType, roomType) != 0 && occupied >= total) {
         printf("[Availability Alert] All %d '%s' rooms are currently FULL! Please choose another type.\n", total, roomType);
         return;
     }
@@ -307,7 +374,6 @@ void performCheckout(const char *name) {
 
     g->isCheckedOut = 1;
 
-    // Show release message
     int avail = getCategoryTotal(g->roomType) - getCategoryOccupied(g->roomType);
     printf("[Room Released] %s room released! Total %s rooms now available: %d\n\n", 
            g->roomType, g->roomType, avail);
@@ -366,8 +432,209 @@ void resetGuestRecord(const char *name) {
     printf("[Record Cleared] Guest record '%s' removed from system.\n", name);
 }
 
+/* ---------------- VARIABLE SYMBOL TABLE ---------------- */
 
-#line 371 "HotelStay.tab.c"
+int findVar(const char *name) {
+    for (int i = 0; i < varCount; i++) {
+        if (strcmp(varTable[i].name, name) == 0) return i;
+    }
+    return -1;
+}
+
+void declareVar(const char *name) {
+    if (findVar(name) != -1) {
+        printf("[Semantic Error] Variable '%s' already declared.\n", name);
+        return;
+    }
+    if (varCount >= MAX_VARS) {
+        printf("[System Error] Variable table overflow.\n");
+        return;
+    }
+    strcpy(varTable[varCount].name, name);
+    varTable[varCount].value = 0;
+    varTable[varCount].isDeclared = 1;
+    varCount++;
+}
+
+void setVar(const char *name, int val) {
+    int idx = findVar(name);
+    if (idx == -1) {
+        printf("[Semantic Error] Variable '%s' used without declaration. Auto-declaring.\n", name);
+        declareVar(name);
+        idx = findVar(name);
+    }
+    varTable[idx].value = val;
+}
+
+int getVar(const char *name) {
+    int idx = findVar(name);
+    if (idx == -1) {
+        printf("[Semantic Error] Variable '%s' is not declared.\n", name);
+        return 0;
+    }
+    return varTable[idx].value;
+}
+
+/* ---------------- AST CONSTRUCTORS ---------------- */
+
+ExprNode *createNumExpr(int val) {
+    ExprNode *e = (ExprNode *)malloc(sizeof(ExprNode));
+    e->type = EXPR_NUM;
+    e->num = val;
+    e->left = e->right = NULL;
+    return e;
+}
+
+ExprNode *createVarExpr(const char *name) {
+    ExprNode *e = (ExprNode *)malloc(sizeof(ExprNode));
+    e->type = EXPR_VAR;
+    strcpy(e->varName, name);
+    e->left = e->right = NULL;
+    return e;
+}
+
+ExprNode *createOpExpr(ExprType type, ExprNode *left, ExprNode *right) {
+    ExprNode *e = (ExprNode *)malloc(sizeof(ExprNode));
+    e->type = type;
+    e->left = left;
+    e->right = right;
+    return e;
+}
+
+StmtNode *createStmt(StmtType type) {
+    StmtNode *s = (StmtNode *)malloc(sizeof(StmtNode));
+    s->type = type;
+    s->id1[0] = '\0';
+    s->id2[0] = '\0';
+    s->expr1 = NULL;
+    s->body = NULL;
+    s->elseBody = NULL;
+    s->next = NULL;
+    return s;
+}
+
+/* ---------------- AST INTERPRETER / EXECUTOR ---------------- */
+
+int evalExpr(ExprNode *e) {
+    if (!e) return 0;
+    switch(e->type) {
+        case EXPR_NUM: return e->num;
+        case EXPR_VAR: return getVar(e->varName);
+        case EXPR_ADD: return evalExpr(e->left) + evalExpr(e->right);
+        case EXPR_SUB: return evalExpr(e->left) - evalExpr(e->right);
+        case EXPR_MUL: return evalExpr(e->left) * evalExpr(e->right);
+        case EXPR_DIV: {
+            int d = evalExpr(e->right);
+            if (d == 0) {
+                printf("[Math Error] Division by zero encountered. Defaulting to 0.\n");
+                return 0;
+            }
+            return evalExpr(e->left) / d;
+        }
+        case EXPR_EQ:  return evalExpr(e->left) == evalExpr(e->right);
+        case EXPR_NEQ: return evalExpr(e->left) != evalExpr(e->right);
+        case EXPR_LT:  return evalExpr(e->left) < evalExpr(e->right);
+        case EXPR_GT:  return evalExpr(e->left) > evalExpr(e->right);
+        case EXPR_LTE: return evalExpr(e->left) <= evalExpr(e->right);
+        case EXPR_GTE: return evalExpr(e->left) >= evalExpr(e->right);
+    }
+    return 0;
+}
+
+int executionHalted = 0;
+void executeStmtList(StmtNode *list);
+
+void executeStmt(StmtNode *s) {
+    if (!s || executionHalted) return;
+    switch(s->type) {
+        case STMT_GUEST:
+            registerGuest(s->id1);
+            break;
+        case STMT_ROOM:
+            assignRoom(s->id1, s->id2, evalExpr(s->expr1));
+            break;
+        case STMT_NIGHTS:
+            assignNights(s->id1, evalExpr(s->expr1));
+            break;
+        case STMT_AMENITY:
+            addAmenityService(s->id1, s->id2, evalExpr(s->expr1));
+            break;
+        case STMT_DISCOUNT:
+            applyDiscount(s->id1, evalExpr(s->expr1));
+            break;
+        case STMT_TAX:
+            applyTax(s->id1, evalExpr(s->expr1));
+            break;
+        case STMT_CHECKOUT:
+            performCheckout(s->id1);
+            break;
+        case STMT_STATUS:
+            printHotelStatus();
+            break;
+        case STMT_PRINT_STR:
+            printf("[NOTICE] %s\n", s->id2);
+            break;
+        case STMT_PRINT_EXPR:
+            printf("[OUTPUT] %d\n", evalExpr(s->expr1));
+            break;
+        case STMT_RESET:
+            resetGuestRecord(s->id1);
+            break;
+        case STMT_MAKE:
+            declareVar(s->id1);
+            break;
+        case STMT_ASSIGN:
+            setVar(s->id1, evalExpr(s->expr1));
+            break;
+        case STMT_TAKE: {
+            int val;
+            printf("Input %s: ", s->id1);
+            if (scanf("%d", &val) == 1) {
+                setVar(s->id1, val);
+            } else {
+                printf("[Input Error] Invalid number.\n");
+            }
+            break;
+        }
+        case STMT_WHEN:
+            if (evalExpr(s->expr1)) {
+                executeStmtList(s->body);
+            } else if (s->elseBody) {
+                executeStmtList(s->elseBody);
+            }
+            break;
+        case STMT_REPEAT: {
+            int guard = 0;
+            while (evalExpr(s->expr1) && !executionHalted) {
+                executeStmtList(s->body);
+                guard++;
+                if (guard > 100000) {
+                    printf("[Runtime Error] Infinite loop detected.\n");
+                    break;
+                }
+            }
+            break;
+        }
+        case STMT_BLOCK:
+            executeStmtList(s->body);
+            break;
+        case STMT_STOP:
+            printf("[STOP] Program execution halted.\n");
+            executionHalted = 1;
+            break;
+    }
+}
+
+void executeStmtList(StmtNode *list) {
+    StmtNode *curr = list;
+    while (curr && !executionHalted) {
+        executeStmt(curr);
+        curr = curr->next;
+    }
+}
+
+
+#line 638 "HotelStay.tab.c"
 
 # ifndef YY_CAST
 #  ifdef __cplusplus
@@ -408,37 +675,60 @@ enum yysymbol_kind_t
   YYSYMBOL_STATUS = 10,                    /* STATUS  */
   YYSYMBOL_PRINT = 11,                     /* PRINT  */
   YYSYMBOL_RESET = 12,                     /* RESET  */
-  YYSYMBOL_STANDARD = 13,                  /* STANDARD  */
-  YYSYMBOL_DELUXE = 14,                    /* DELUXE  */
-  YYSYMBOL_SUITE = 15,                     /* SUITE  */
-  YYSYMBOL_PRESIDENTIAL = 16,              /* PRESIDENTIAL  */
-  YYSYMBOL_NUMBER = 17,                    /* NUMBER  */
-  YYSYMBOL_ID = 18,                        /* ID  */
-  YYSYMBOL_STRING = 19,                    /* STRING  */
-  YYSYMBOL_20_ = 20,                       /* '+'  */
-  YYSYMBOL_21_ = 21,                       /* '-'  */
-  YYSYMBOL_22_ = 22,                       /* '*'  */
-  YYSYMBOL_23_ = 23,                       /* '/'  */
-  YYSYMBOL_24_ = 24,                       /* ';'  */
-  YYSYMBOL_25_ = 25,                       /* '('  */
-  YYSYMBOL_26_ = 26,                       /* ')'  */
-  YYSYMBOL_YYACCEPT = 27,                  /* $accept  */
-  YYSYMBOL_program = 28,                   /* program  */
-  YYSYMBOL_statements = 29,                /* statements  */
-  YYSYMBOL_statement = 30,                 /* statement  */
-  YYSYMBOL_guest_decl = 31,                /* guest_decl  */
-  YYSYMBOL_room_assignment = 32,           /* room_assignment  */
-  YYSYMBOL_nights_assignment = 33,         /* nights_assignment  */
-  YYSYMBOL_amenity_addition = 34,          /* amenity_addition  */
-  YYSYMBOL_discount_assignment = 35,       /* discount_assignment  */
-  YYSYMBOL_tax_assignment = 36,            /* tax_assignment  */
-  YYSYMBOL_checkout_stmt = 37,             /* checkout_stmt  */
-  YYSYMBOL_status_stmt = 38,               /* status_stmt  */
-  YYSYMBOL_print_stmt = 39,                /* print_stmt  */
-  YYSYMBOL_reset_stmt = 40,                /* reset_stmt  */
-  YYSYMBOL_expression = 41,                /* expression  */
-  YYSYMBOL_term = 42,                      /* term  */
-  YYSYMBOL_factor = 43                     /* factor  */
+  YYSYMBOL_MAKE = 13,                      /* MAKE  */
+  YYSYMBOL_TAKE = 14,                      /* TAKE  */
+  YYSYMBOL_WHEN = 15,                      /* WHEN  */
+  YYSYMBOL_OTHERWISE = 16,                 /* OTHERWISE  */
+  YYSYMBOL_REPEAT = 17,                    /* REPEAT  */
+  YYSYMBOL_STOP = 18,                      /* STOP  */
+  YYSYMBOL_STANDARD = 19,                  /* STANDARD  */
+  YYSYMBOL_DELUXE = 20,                    /* DELUXE  */
+  YYSYMBOL_SUITE = 21,                     /* SUITE  */
+  YYSYMBOL_PRESIDENTIAL = 22,              /* PRESIDENTIAL  */
+  YYSYMBOL_NUMBER = 23,                    /* NUMBER  */
+  YYSYMBOL_ID = 24,                        /* ID  */
+  YYSYMBOL_STRING = 25,                    /* STRING  */
+  YYSYMBOL_LOWER_THAN_OTHERWISE = 26,      /* LOWER_THAN_OTHERWISE  */
+  YYSYMBOL_EQ = 27,                        /* EQ  */
+  YYSYMBOL_NEQ = 28,                       /* NEQ  */
+  YYSYMBOL_29_ = 29,                       /* '<'  */
+  YYSYMBOL_30_ = 30,                       /* '>'  */
+  YYSYMBOL_LTE = 31,                       /* LTE  */
+  YYSYMBOL_GTE = 32,                       /* GTE  */
+  YYSYMBOL_33_ = 33,                       /* '+'  */
+  YYSYMBOL_34_ = 34,                       /* '-'  */
+  YYSYMBOL_35_ = 35,                       /* '*'  */
+  YYSYMBOL_36_ = 36,                       /* '/'  */
+  YYSYMBOL_37_ = 37,                       /* '{'  */
+  YYSYMBOL_38_ = 38,                       /* '}'  */
+  YYSYMBOL_39_ = 39,                       /* ';'  */
+  YYSYMBOL_40_ = 40,                       /* '='  */
+  YYSYMBOL_41_ = 41,                       /* '('  */
+  YYSYMBOL_42_ = 42,                       /* ')'  */
+  YYSYMBOL_YYACCEPT = 43,                  /* $accept  */
+  YYSYMBOL_program = 44,                   /* program  */
+  YYSYMBOL_statements = 45,                /* statements  */
+  YYSYMBOL_statement = 46,                 /* statement  */
+  YYSYMBOL_statement_block = 47,           /* statement_block  */
+  YYSYMBOL_guest_decl = 48,                /* guest_decl  */
+  YYSYMBOL_room_assignment = 49,           /* room_assignment  */
+  YYSYMBOL_nights_assignment = 50,         /* nights_assignment  */
+  YYSYMBOL_amenity_addition = 51,          /* amenity_addition  */
+  YYSYMBOL_discount_assignment = 52,       /* discount_assignment  */
+  YYSYMBOL_tax_assignment = 53,            /* tax_assignment  */
+  YYSYMBOL_checkout_stmt = 54,             /* checkout_stmt  */
+  YYSYMBOL_status_stmt = 55,               /* status_stmt  */
+  YYSYMBOL_print_stmt = 56,                /* print_stmt  */
+  YYSYMBOL_reset_stmt = 57,                /* reset_stmt  */
+  YYSYMBOL_make_stmt = 58,                 /* make_stmt  */
+  YYSYMBOL_take_stmt = 59,                 /* take_stmt  */
+  YYSYMBOL_assign_stmt = 60,               /* assign_stmt  */
+  YYSYMBOL_when_stmt = 61,                 /* when_stmt  */
+  YYSYMBOL_repeat_stmt = 62,               /* repeat_stmt  */
+  YYSYMBOL_stop_stmt = 63,                 /* stop_stmt  */
+  YYSYMBOL_expression = 64,                /* expression  */
+  YYSYMBOL_term = 65,                      /* term  */
+  YYSYMBOL_factor = 66                     /* factor  */
 };
 typedef enum yysymbol_kind_t yysymbol_kind_t;
 
@@ -764,21 +1054,21 @@ union yyalloc
 #endif /* !YYCOPY_NEEDED */
 
 /* YYFINAL -- State number of the termination state.  */
-#define YYFINAL  39
+#define YYFINAL  61
 /* YYLAST -- Last index in YYTABLE.  */
-#define YYLAST   82
+#define YYLAST   249
 
 /* YYNTOKENS -- Number of terminals.  */
-#define YYNTOKENS  27
+#define YYNTOKENS  43
 /* YYNNTS -- Number of nonterminals.  */
-#define YYNNTS  17
+#define YYNNTS  24
 /* YYNRULES -- Number of rules.  */
-#define YYNRULES  38
+#define YYNRULES  61
 /* YYNSTATES -- Number of states.  */
-#define YYNSTATES  79
+#define YYNSTATES  126
 
 /* YYMAXUTOK -- Last valid token kind.  */
-#define YYMAXUTOK   274
+#define YYMAXUTOK   285
 
 
 /* YYTRANSLATE(TOKEN-NUM) -- Symbol number corresponding to TOKEN-NUM
@@ -796,15 +1086,15 @@ static const yytype_int8 yytranslate[] =
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
-      25,    26,    22,    20,     2,    21,     2,    23,     2,     2,
-       2,     2,     2,     2,     2,     2,     2,     2,     2,    24,
+      41,    42,    35,    33,     2,    34,     2,    36,     2,     2,
+       2,     2,     2,     2,     2,     2,     2,     2,     2,    39,
+      29,    40,    30,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
-       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
-       2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
+       2,     2,     2,    37,     2,    38,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
@@ -819,17 +1109,21 @@ static const yytype_int8 yytranslate[] =
        2,     2,     2,     2,     2,     2,     2,     2,     2,     2,
        2,     2,     2,     2,     2,     2,     1,     2,     3,     4,
        5,     6,     7,     8,     9,    10,    11,    12,    13,    14,
-      15,    16,    17,    18,    19
+      15,    16,    17,    18,    19,    20,    21,    22,    23,    24,
+      25,    26,    27,    28,    31,    32
 };
 
 #if YYDEBUG
 /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
 static const yytype_int16 yyrline[] =
 {
-       0,   327,   327,   336,   337,   341,   342,   343,   344,   345,
-     346,   347,   348,   349,   350,   354,   362,   367,   372,   377,
-     382,   391,   399,   405,   414,   422,   430,   438,   445,   450,
-     457,   467,   471,   475,   482,   486,   495,   502,   506
+       0,   605,   605,   616,   627,   632,   638,   639,   640,   641,
+     642,   643,   644,   645,   646,   647,   648,   649,   650,   651,
+     652,   653,   654,   658,   667,   677,   686,   695,   704,   713,
+     726,   737,   747,   760,   771,   782,   792,   799,   806,   815,
+     825,   835,   845,   856,   864,   875,   885,   894,   895,   896,
+     897,   898,   899,   900,   901,   902,   906,   907,   908,   912,
+     913,   914
 };
 #endif
 
@@ -847,12 +1141,15 @@ static const char *const yytname[] =
 {
   "\"end of file\"", "error", "\"invalid token\"", "GUEST", "ROOM",
   "NIGHTS", "AMENITY", "DISCOUNT", "TAX", "CHECKOUT", "STATUS", "PRINT",
-  "RESET", "STANDARD", "DELUXE", "SUITE", "PRESIDENTIAL", "NUMBER", "ID",
-  "STRING", "'+'", "'-'", "'*'", "'/'", "';'", "'('", "')'", "$accept",
-  "program", "statements", "statement", "guest_decl", "room_assignment",
-  "nights_assignment", "amenity_addition", "discount_assignment",
-  "tax_assignment", "checkout_stmt", "status_stmt", "print_stmt",
-  "reset_stmt", "expression", "term", "factor", YY_NULLPTR
+  "RESET", "MAKE", "TAKE", "WHEN", "OTHERWISE", "REPEAT", "STOP",
+  "STANDARD", "DELUXE", "SUITE", "PRESIDENTIAL", "NUMBER", "ID", "STRING",
+  "LOWER_THAN_OTHERWISE", "EQ", "NEQ", "'<'", "'>'", "LTE", "GTE", "'+'",
+  "'-'", "'*'", "'/'", "'{'", "'}'", "';'", "'='", "'('", "')'", "$accept",
+  "program", "statements", "statement", "statement_block", "guest_decl",
+  "room_assignment", "nights_assignment", "amenity_addition",
+  "discount_assignment", "tax_assignment", "checkout_stmt", "status_stmt",
+  "print_stmt", "reset_stmt", "make_stmt", "take_stmt", "assign_stmt",
+  "when_stmt", "repeat_stmt", "stop_stmt", "expression", "term", "factor", YY_NULLPTR
 };
 
 static const char *
@@ -862,7 +1159,7 @@ yysymbol_name (yysymbol_kind_t yysymbol)
 }
 #endif
 
-#define YYPACT_NINF (-28)
+#define YYPACT_NINF (-55)
 
 #define yypact_value_is_default(Yyn) \
   ((Yyn) == YYPACT_NINF)
@@ -874,16 +1171,21 @@ yysymbol_name (yysymbol_kind_t yysymbol)
 
 /* YYPACT[STATE-NUM] -- Index in YYTABLE of the portion describing
    STATE-NUM.  */
-static const yytype_int8 yypact[] =
+static const yytype_int16 yypact[] =
 {
-       6,   -17,    12,    47,    48,    49,    50,    51,    13,     2,
-      52,    44,     6,   -28,   -28,   -28,   -28,   -28,   -28,   -28,
-     -28,   -28,   -28,   -28,    27,    20,     7,   -14,     7,     7,
-      34,   -28,   -28,    53,     7,    19,   -16,   -28,    54,   -28,
-     -28,   -28,    55,    56,    57,    58,     7,    21,     7,     7,
-      26,    28,   -28,   -28,     5,     7,     7,   -28,     7,     7,
-     -28,   -28,   -28,   -28,   -28,    33,   -28,    35,    40,   -28,
-     -28,   -28,   -16,   -16,   -28,   -28,   -28,   -28,   -28
+      39,   -10,    -1,    10,    14,    16,    31,    35,    23,    -4,
+      42,    48,    56,    40,    44,    45,    47,    39,    83,    39,
+     -55,   -55,   -55,   -55,   -55,   -55,   -55,   -55,   -55,   -55,
+     -55,   -55,   -55,   -55,   -55,   -55,   -55,   -55,    51,    49,
+      41,    -7,    41,    41,    52,   -55,   -55,   -55,    53,    41,
+     111,    43,   -55,    54,    55,    57,    41,    41,   -55,    41,
+      -2,   -55,   -55,   -55,    60,    61,    62,    63,    41,   124,
+      41,    41,   137,   150,   -55,   -55,    -3,    41,    41,    41,
+      41,    41,    41,    41,    41,   -55,    41,    41,   -55,   -55,
+     -55,    79,    95,   163,   -55,   -55,   -55,   -55,   -55,   176,
+     -55,   189,   202,   -55,   -55,   -55,    43,    43,    43,    43,
+      43,    43,    43,    43,   -55,   -55,    39,    39,   -55,   -55,
+     -55,   -55,    87,   -55,    39,   -55
 };
 
 /* YYDEFACT[STATE-NUM] -- Default reduction number in state STATE-NUM.
@@ -891,28 +1193,35 @@ static const yytype_int8 yypact[] =
    means the default is an error.  */
 static const yytype_int8 yydefact[] =
 {
-       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,     0,     2,     4,     5,     6,     7,     8,     9,    10,
-      11,    12,    13,    14,     0,     0,     0,     0,     0,     0,
-       0,    27,    37,     0,     0,     0,    33,    36,     0,     1,
-       3,    15,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,     0,    26,    28,     0,     0,     0,    29,     0,     0,
-      30,    16,    17,    18,    19,     0,    21,     0,     0,    24,
-      25,    38,    31,    32,    34,    35,    20,    22,    23
+       5,     0,     0,     0,     0,     0,     0,     0,     0,     0,
+       0,     0,     0,     0,     0,     0,     0,     5,     0,     2,
+       4,    22,     6,     7,     8,     9,    10,    11,    12,    13,
+      14,    15,    16,    17,    18,    19,    20,    21,     0,     0,
+       0,     0,     0,     0,     0,    36,    59,    60,     0,     0,
+       0,    55,    58,     0,     0,     0,     0,     0,    46,     0,
+       0,     1,     3,    24,     0,     0,     0,     0,     0,     0,
+       0,     0,     0,     0,    35,    37,     0,     0,     0,     0,
+       0,     0,     0,     0,     0,    38,     0,     0,    39,    40,
+      41,     0,     0,     0,    23,    25,    26,    27,    28,     0,
+      30,     0,     0,    33,    34,    61,    47,    48,    49,    50,
+      51,    52,    53,    54,    56,    57,     0,     0,    42,    29,
+      31,    32,    43,    45,     0,    44
 };
 
 /* YYPGOTO[NTERM-NUM].  */
-static const yytype_int8 yypgoto[] =
+static const yytype_int16 yypgoto[] =
 {
-     -28,   -28,   -28,    59,   -28,   -28,   -28,   -28,   -28,   -28,
-     -28,   -28,   -28,   -28,   -26,   -27,     4
+     -55,   -55,    78,   -19,   -55,   -55,   -55,   -55,   -55,   -55,
+     -55,   -55,   -55,   -55,   -55,   -55,   -55,   -55,   -55,   -55,
+     -55,    18,   165,   -54
 };
 
 /* YYDEFGOTO[NTERM-NUM].  */
 static const yytype_int8 yydefgoto[] =
 {
-       0,    11,    12,    13,    14,    15,    16,    17,    18,    19,
-      20,    21,    22,    23,    35,    36,    37
+       0,    18,    19,    20,    21,    22,    23,    24,    25,    26,
+      27,    28,    29,    30,    31,    32,    33,    34,    35,    36,
+      37,    50,    51,    52
 };
 
 /* YYTABLE[YYPACT[STATE-NUM]] -- What to do in state STATE-NUM.  If
@@ -920,28 +1229,60 @@ static const yytype_int8 yydefgoto[] =
    number is the opposite.  If YYTABLE_NINF, syntax error.  */
 static const yytype_int8 yytable[] =
 {
-      47,    24,    50,    51,    48,    49,    58,    59,    54,     1,
-       2,     3,     4,     5,     6,     7,     8,     9,    10,    32,
-      65,    33,    67,    68,    32,    55,    56,    34,    72,    73,
-      25,    71,    34,    42,    43,    44,    45,    31,    46,    55,
-      56,    55,    56,    57,    39,    66,    55,    56,    55,    56,
-      69,    41,    70,    55,    56,    55,    56,    76,    52,    77,
-      55,    56,    74,    75,    78,    26,    27,    28,    29,    30,
-      38,    40,     0,     0,     0,     0,     0,    53,    60,    61,
-      62,    63,    64
+      62,     1,     2,     3,     4,     5,     6,     7,     8,     9,
+      10,    11,    12,    13,    38,    14,    15,    70,    71,    46,
+      47,    48,    16,    39,    77,    78,    79,    80,    81,    82,
+      83,    84,   114,   115,    40,    17,    94,    49,    41,   105,
+      42,    62,     1,     2,     3,     4,     5,     6,     7,     8,
+       9,    10,    11,    12,    13,    43,    14,    15,    69,    44,
+      72,    73,    45,    16,    46,    47,    53,    76,    64,    65,
+      66,    67,    54,    68,    91,    92,    17,    93,    86,    87,
+      55,    56,    49,    61,    58,    57,    99,    59,   101,   102,
+      63,    74,    75,    88,    89,    60,    90,   122,   123,    95,
+      96,    97,    98,   124,     0,   125,    77,    78,    79,    80,
+      81,    82,    83,    84,     0,     0,     0,     0,     0,     0,
+       0,   116,    77,    78,    79,    80,    81,    82,    83,    84,
+       0,     0,     0,     0,     0,     0,     0,   117,    77,    78,
+      79,    80,    81,    82,    83,    84,     0,     0,     0,     0,
+      85,    77,    78,    79,    80,    81,    82,    83,    84,     0,
+       0,     0,     0,   100,    77,    78,    79,    80,    81,    82,
+      83,    84,     0,     0,     0,     0,   103,    77,    78,    79,
+      80,    81,    82,    83,    84,     0,     0,     0,     0,   104,
+      77,    78,    79,    80,    81,    82,    83,    84,     0,     0,
+       0,     0,   118,    77,    78,    79,    80,    81,    82,    83,
+      84,     0,     0,     0,     0,   119,    77,    78,    79,    80,
+      81,    82,    83,    84,     0,     0,     0,     0,   120,    77,
+      78,    79,    80,    81,    82,    83,    84,     0,     0,     0,
+       0,   121,   106,   107,   108,   109,   110,   111,   112,   113
 };
 
 static const yytype_int8 yycheck[] =
 {
-      26,    18,    28,    29,    18,    19,    22,    23,    34,     3,
-       4,     5,     6,     7,     8,     9,    10,    11,    12,    17,
-      46,    19,    48,    49,    17,    20,    21,    25,    55,    56,
-      18,    26,    25,    13,    14,    15,    16,    24,    18,    20,
-      21,    20,    21,    24,     0,    24,    20,    21,    20,    21,
-      24,    24,    24,    20,    21,    20,    21,    24,    24,    24,
-      20,    21,    58,    59,    24,    18,    18,    18,    18,    18,
-      18,    12,    -1,    -1,    -1,    -1,    -1,    24,    24,    24,
-      24,    24,    24
+      19,     3,     4,     5,     6,     7,     8,     9,    10,    11,
+      12,    13,    14,    15,    24,    17,    18,    24,    25,    23,
+      24,    25,    24,    24,    27,    28,    29,    30,    31,    32,
+      33,    34,    86,    87,    24,    37,    38,    41,    24,    42,
+      24,    60,     3,     4,     5,     6,     7,     8,     9,    10,
+      11,    12,    13,    14,    15,    24,    17,    18,    40,    24,
+      42,    43,    39,    24,    23,    24,    24,    49,    19,    20,
+      21,    22,    24,    24,    56,    57,    37,    59,    35,    36,
+      24,    41,    41,     0,    39,    41,    68,    40,    70,    71,
+      39,    39,    39,    39,    39,    17,    39,   116,   117,    39,
+      39,    39,    39,    16,    -1,   124,    27,    28,    29,    30,
+      31,    32,    33,    34,    -1,    -1,    -1,    -1,    -1,    -1,
+      -1,    42,    27,    28,    29,    30,    31,    32,    33,    34,
+      -1,    -1,    -1,    -1,    -1,    -1,    -1,    42,    27,    28,
+      29,    30,    31,    32,    33,    34,    -1,    -1,    -1,    -1,
+      39,    27,    28,    29,    30,    31,    32,    33,    34,    -1,
+      -1,    -1,    -1,    39,    27,    28,    29,    30,    31,    32,
+      33,    34,    -1,    -1,    -1,    -1,    39,    27,    28,    29,
+      30,    31,    32,    33,    34,    -1,    -1,    -1,    -1,    39,
+      27,    28,    29,    30,    31,    32,    33,    34,    -1,    -1,
+      -1,    -1,    39,    27,    28,    29,    30,    31,    32,    33,
+      34,    -1,    -1,    -1,    -1,    39,    27,    28,    29,    30,
+      31,    32,    33,    34,    -1,    -1,    -1,    -1,    39,    27,
+      28,    29,    30,    31,    32,    33,    34,    -1,    -1,    -1,
+      -1,    39,    77,    78,    79,    80,    81,    82,    83,    84
 };
 
 /* YYSTOS[STATE-NUM] -- The symbol kind of the accessing symbol of
@@ -949,31 +1290,42 @@ static const yytype_int8 yycheck[] =
 static const yytype_int8 yystos[] =
 {
        0,     3,     4,     5,     6,     7,     8,     9,    10,    11,
-      12,    28,    29,    30,    31,    32,    33,    34,    35,    36,
-      37,    38,    39,    40,    18,    18,    18,    18,    18,    18,
-      18,    24,    17,    19,    25,    41,    42,    43,    18,     0,
-      30,    24,    13,    14,    15,    16,    18,    41,    18,    19,
-      41,    41,    24,    24,    41,    20,    21,    24,    22,    23,
-      24,    24,    24,    24,    24,    41,    24,    41,    41,    24,
-      24,    26,    42,    42,    43,    43,    24,    24,    24
+      12,    13,    14,    15,    17,    18,    24,    37,    44,    45,
+      46,    47,    48,    49,    50,    51,    52,    53,    54,    55,
+      56,    57,    58,    59,    60,    61,    62,    63,    24,    24,
+      24,    24,    24,    24,    24,    39,    23,    24,    25,    41,
+      64,    65,    66,    24,    24,    24,    41,    41,    39,    40,
+      45,     0,    46,    39,    19,    20,    21,    22,    24,    64,
+      24,    25,    64,    64,    39,    39,    64,    27,    28,    29,
+      30,    31,    32,    33,    34,    39,    35,    36,    39,    39,
+      39,    64,    64,    64,    38,    39,    39,    39,    39,    64,
+      39,    64,    64,    39,    39,    42,    65,    65,    65,    65,
+      65,    65,    65,    65,    66,    66,    42,    42,    39,    39,
+      39,    39,    46,    46,    16,    46
 };
 
 /* YYR1[RULE-NUM] -- Symbol kind of the left-hand side of rule RULE-NUM.  */
 static const yytype_int8 yyr1[] =
 {
-       0,    27,    28,    29,    29,    30,    30,    30,    30,    30,
-      30,    30,    30,    30,    30,    31,    32,    32,    32,    32,
-      32,    33,    34,    34,    35,    36,    37,    38,    39,    39,
-      40,    41,    41,    41,    42,    42,    42,    43,    43
+       0,    43,    44,    45,    45,    45,    46,    46,    46,    46,
+      46,    46,    46,    46,    46,    46,    46,    46,    46,    46,
+      46,    46,    46,    47,    48,    49,    49,    49,    49,    49,
+      50,    51,    51,    52,    53,    54,    55,    56,    56,    57,
+      58,    59,    60,    61,    61,    62,    63,    64,    64,    64,
+      64,    64,    64,    64,    64,    64,    65,    65,    65,    66,
+      66,    66
 };
 
 /* YYR2[RULE-NUM] -- Number of symbols on the right-hand side of rule RULE-NUM.  */
 static const yytype_int8 yyr2[] =
 {
-       0,     2,     1,     2,     1,     1,     1,     1,     1,     1,
-       1,     1,     1,     1,     1,     3,     4,     4,     4,     4,
-       5,     4,     5,     5,     4,     4,     3,     2,     3,     3,
-       3,     3,     3,     1,     3,     3,     1,     1,     3
+       0,     2,     1,     2,     1,     0,     1,     1,     1,     1,
+       1,     1,     1,     1,     1,     1,     1,     1,     1,     1,
+       1,     1,     1,     3,     3,     4,     4,     4,     4,     5,
+       4,     5,     5,     4,     4,     3,     2,     3,     3,     3,
+       3,     3,     4,     5,     7,     5,     2,     3,     3,     3,
+       3,     3,     3,     3,     3,     1,     3,     3,     1,     1,
+       1,     3
 };
 
 
@@ -1437,231 +1789,419 @@ yyreduce:
   switch (yyn)
     {
   case 2: /* program: statements  */
-#line 328 "HotelStay.y"
+#line 606 "HotelStay.y"
     {
+        (yyval.stmt) = (yyvsp[0].stmt);
+        executeStmtList((yyval.stmt));
         printf("\n============================================================\n");
         printf("           HOTELSTAY COMPILATION & EXECUTION COMPLETE       \n");
         printf("============================================================\n");
     }
-#line 1447 "HotelStay.tab.c"
+#line 1801 "HotelStay.tab.c"
     break;
 
-  case 15: /* guest_decl: GUEST ID ';'  */
-#line 355 "HotelStay.y"
+  case 3: /* statements: statements statement  */
+#line 617 "HotelStay.y"
     {
-        registerGuest((yyvsp[-1].str));
-        free((yyvsp[-1].str));
-    }
-#line 1456 "HotelStay.tab.c"
-    break;
-
-  case 16: /* room_assignment: ROOM ID STANDARD ';'  */
-#line 363 "HotelStay.y"
-    {
-        assignRoom((yyvsp[-2].str), "STANDARD", 2500);
-        free((yyvsp[-2].str));
-    }
-#line 1465 "HotelStay.tab.c"
-    break;
-
-  case 17: /* room_assignment: ROOM ID DELUXE ';'  */
-#line 368 "HotelStay.y"
-    {
-        assignRoom((yyvsp[-2].str), "DELUXE", 4500);
-        free((yyvsp[-2].str));
-    }
-#line 1474 "HotelStay.tab.c"
-    break;
-
-  case 18: /* room_assignment: ROOM ID SUITE ';'  */
-#line 373 "HotelStay.y"
-    {
-        assignRoom((yyvsp[-2].str), "SUITE", 8000);
-        free((yyvsp[-2].str));
-    }
-#line 1483 "HotelStay.tab.c"
-    break;
-
-  case 19: /* room_assignment: ROOM ID PRESIDENTIAL ';'  */
-#line 378 "HotelStay.y"
-    {
-        assignRoom((yyvsp[-2].str), "PRESIDENTIAL", 18000);
-        free((yyvsp[-2].str));
-    }
-#line 1492 "HotelStay.tab.c"
-    break;
-
-  case 20: /* room_assignment: ROOM ID ID expression ';'  */
-#line 383 "HotelStay.y"
-    {
-        assignRoom((yyvsp[-3].str), (yyvsp[-2].str), (yyvsp[-1].num));
-        free((yyvsp[-3].str));
-        free((yyvsp[-2].str));
-    }
-#line 1502 "HotelStay.tab.c"
-    break;
-
-  case 21: /* nights_assignment: NIGHTS ID expression ';'  */
-#line 392 "HotelStay.y"
-    {
-        assignNights((yyvsp[-2].str), (yyvsp[-1].num));
-        free((yyvsp[-2].str));
-    }
-#line 1511 "HotelStay.tab.c"
-    break;
-
-  case 22: /* amenity_addition: AMENITY ID ID expression ';'  */
-#line 400 "HotelStay.y"
-    {
-        addAmenityService((yyvsp[-3].str), (yyvsp[-2].str), (yyvsp[-1].num));
-        free((yyvsp[-3].str));
-        free((yyvsp[-2].str));
-    }
-#line 1521 "HotelStay.tab.c"
-    break;
-
-  case 23: /* amenity_addition: AMENITY ID STRING expression ';'  */
-#line 406 "HotelStay.y"
-    {
-        addAmenityService((yyvsp[-3].str), (yyvsp[-2].str), (yyvsp[-1].num));
-        free((yyvsp[-3].str));
-        free((yyvsp[-2].str));
-    }
-#line 1531 "HotelStay.tab.c"
-    break;
-
-  case 24: /* discount_assignment: DISCOUNT ID expression ';'  */
-#line 415 "HotelStay.y"
-    {
-        applyDiscount((yyvsp[-2].str), (yyvsp[-1].num));
-        free((yyvsp[-2].str));
-    }
-#line 1540 "HotelStay.tab.c"
-    break;
-
-  case 25: /* tax_assignment: TAX ID expression ';'  */
-#line 423 "HotelStay.y"
-    {
-        applyTax((yyvsp[-2].str), (yyvsp[-1].num));
-        free((yyvsp[-2].str));
-    }
-#line 1549 "HotelStay.tab.c"
-    break;
-
-  case 26: /* checkout_stmt: CHECKOUT ID ';'  */
-#line 431 "HotelStay.y"
-    {
-        performCheckout((yyvsp[-1].str));
-        free((yyvsp[-1].str));
-    }
-#line 1558 "HotelStay.tab.c"
-    break;
-
-  case 27: /* status_stmt: STATUS ';'  */
-#line 439 "HotelStay.y"
-    {
-        printHotelStatus();
-    }
-#line 1566 "HotelStay.tab.c"
-    break;
-
-  case 28: /* print_stmt: PRINT STRING ';'  */
-#line 446 "HotelStay.y"
-    {
-        printf("[NOTICE] %s\n", (yyvsp[-1].str));
-        free((yyvsp[-1].str));
-    }
-#line 1575 "HotelStay.tab.c"
-    break;
-
-  case 29: /* print_stmt: PRINT expression ';'  */
-#line 451 "HotelStay.y"
-    {
-        printf("[CALCULATION] Result = %d\n", (yyvsp[-1].num));
-    }
-#line 1583 "HotelStay.tab.c"
-    break;
-
-  case 30: /* reset_stmt: RESET ID ';'  */
-#line 458 "HotelStay.y"
-    {
-        resetGuestRecord((yyvsp[-1].str));
-        free((yyvsp[-1].str));
-    }
-#line 1592 "HotelStay.tab.c"
-    break;
-
-  case 31: /* expression: expression '+' term  */
-#line 468 "HotelStay.y"
-    {
-        (yyval.num) = (yyvsp[-2].num) + (yyvsp[0].num);
-    }
-#line 1600 "HotelStay.tab.c"
-    break;
-
-  case 32: /* expression: expression '-' term  */
-#line 472 "HotelStay.y"
-    {
-        (yyval.num) = (yyvsp[-2].num) - (yyvsp[0].num);
-    }
-#line 1608 "HotelStay.tab.c"
-    break;
-
-  case 33: /* expression: term  */
-#line 476 "HotelStay.y"
-    {
-        (yyval.num) = (yyvsp[0].num);
-    }
-#line 1616 "HotelStay.tab.c"
-    break;
-
-  case 34: /* term: term '*' factor  */
-#line 483 "HotelStay.y"
-    {
-        (yyval.num) = (yyvsp[-2].num) * (yyvsp[0].num);
-    }
-#line 1624 "HotelStay.tab.c"
-    break;
-
-  case 35: /* term: term '/' factor  */
-#line 487 "HotelStay.y"
-    {
-        if ((yyvsp[0].num) == 0) {
-            printf("[Math Error] Division by zero encountered. Defaulting to 0.\n");
-            (yyval.num) = 0;
+        if ((yyvsp[-1].stmt) == NULL) {
+            (yyval.stmt) = (yyvsp[0].stmt);
         } else {
-            (yyval.num) = (yyvsp[-2].num) / (yyvsp[0].num);
+            StmtNode *curr = (yyvsp[-1].stmt);
+            while (curr->next != NULL) curr = curr->next;
+            curr->next = (yyvsp[0].stmt);
+            (yyval.stmt) = (yyvsp[-1].stmt);
         }
     }
-#line 1637 "HotelStay.tab.c"
+#line 1816 "HotelStay.tab.c"
     break;
 
-  case 36: /* term: factor  */
-#line 496 "HotelStay.y"
+  case 4: /* statements: statement  */
+#line 628 "HotelStay.y"
     {
-        (yyval.num) = (yyvsp[0].num);
+        (yyval.stmt) = (yyvsp[0].stmt);
     }
-#line 1645 "HotelStay.tab.c"
+#line 1824 "HotelStay.tab.c"
     break;
 
-  case 37: /* factor: NUMBER  */
-#line 503 "HotelStay.y"
+  case 5: /* statements: %empty  */
+#line 632 "HotelStay.y"
     {
-        (yyval.num) = (yyvsp[0].num);
+        (yyval.stmt) = NULL;
     }
-#line 1653 "HotelStay.tab.c"
+#line 1832 "HotelStay.tab.c"
     break;
 
-  case 38: /* factor: '(' expression ')'  */
-#line 507 "HotelStay.y"
+  case 23: /* statement_block: '{' statements '}'  */
+#line 659 "HotelStay.y"
     {
-        (yyval.num) = (yyvsp[-1].num);
+        StmtNode *s = createStmt(STMT_BLOCK);
+        s->body = (yyvsp[-1].stmt);
+        (yyval.stmt) = s;
     }
-#line 1661 "HotelStay.tab.c"
+#line 1842 "HotelStay.tab.c"
+    break;
+
+  case 24: /* guest_decl: GUEST ID ';'  */
+#line 668 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_GUEST);
+        strcpy(s->id1, (yyvsp[-1].str));
+        free((yyvsp[-1].str));
+        (yyval.stmt) = s;
+    }
+#line 1853 "HotelStay.tab.c"
+    break;
+
+  case 25: /* room_assignment: ROOM ID STANDARD ';'  */
+#line 678 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_ROOM);
+        strcpy(s->id1, (yyvsp[-2].str));
+        strcpy(s->id2, "STANDARD");
+        s->expr1 = createNumExpr(2500);
+        free((yyvsp[-2].str));
+        (yyval.stmt) = s;
+    }
+#line 1866 "HotelStay.tab.c"
+    break;
+
+  case 26: /* room_assignment: ROOM ID DELUXE ';'  */
+#line 687 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_ROOM);
+        strcpy(s->id1, (yyvsp[-2].str));
+        strcpy(s->id2, "DELUXE");
+        s->expr1 = createNumExpr(4500);
+        free((yyvsp[-2].str));
+        (yyval.stmt) = s;
+    }
+#line 1879 "HotelStay.tab.c"
+    break;
+
+  case 27: /* room_assignment: ROOM ID SUITE ';'  */
+#line 696 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_ROOM);
+        strcpy(s->id1, (yyvsp[-2].str));
+        strcpy(s->id2, "SUITE");
+        s->expr1 = createNumExpr(8000);
+        free((yyvsp[-2].str));
+        (yyval.stmt) = s;
+    }
+#line 1892 "HotelStay.tab.c"
+    break;
+
+  case 28: /* room_assignment: ROOM ID PRESIDENTIAL ';'  */
+#line 705 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_ROOM);
+        strcpy(s->id1, (yyvsp[-2].str));
+        strcpy(s->id2, "PRESIDENTIAL");
+        s->expr1 = createNumExpr(18000);
+        free((yyvsp[-2].str));
+        (yyval.stmt) = s;
+    }
+#line 1905 "HotelStay.tab.c"
+    break;
+
+  case 29: /* room_assignment: ROOM ID ID expression ';'  */
+#line 714 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_ROOM);
+        strcpy(s->id1, (yyvsp[-3].str));
+        strcpy(s->id2, (yyvsp[-2].str));
+        s->expr1 = (yyvsp[-1].expr);
+        free((yyvsp[-3].str));
+        free((yyvsp[-2].str));
+        (yyval.stmt) = s;
+    }
+#line 1919 "HotelStay.tab.c"
+    break;
+
+  case 30: /* nights_assignment: NIGHTS ID expression ';'  */
+#line 727 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_NIGHTS);
+        strcpy(s->id1, (yyvsp[-2].str));
+        s->expr1 = (yyvsp[-1].expr);
+        free((yyvsp[-2].str));
+        (yyval.stmt) = s;
+    }
+#line 1931 "HotelStay.tab.c"
+    break;
+
+  case 31: /* amenity_addition: AMENITY ID ID expression ';'  */
+#line 738 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_AMENITY);
+        strcpy(s->id1, (yyvsp[-3].str));
+        strcpy(s->id2, (yyvsp[-2].str));
+        s->expr1 = (yyvsp[-1].expr);
+        free((yyvsp[-3].str));
+        free((yyvsp[-2].str));
+        (yyval.stmt) = s;
+    }
+#line 1945 "HotelStay.tab.c"
+    break;
+
+  case 32: /* amenity_addition: AMENITY ID STRING expression ';'  */
+#line 748 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_AMENITY);
+        strcpy(s->id1, (yyvsp[-3].str));
+        strcpy(s->id2, (yyvsp[-2].str));
+        s->expr1 = (yyvsp[-1].expr);
+        free((yyvsp[-3].str));
+        free((yyvsp[-2].str));
+        (yyval.stmt) = s;
+    }
+#line 1959 "HotelStay.tab.c"
+    break;
+
+  case 33: /* discount_assignment: DISCOUNT ID expression ';'  */
+#line 761 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_DISCOUNT);
+        strcpy(s->id1, (yyvsp[-2].str));
+        s->expr1 = (yyvsp[-1].expr);
+        free((yyvsp[-2].str));
+        (yyval.stmt) = s;
+    }
+#line 1971 "HotelStay.tab.c"
+    break;
+
+  case 34: /* tax_assignment: TAX ID expression ';'  */
+#line 772 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_TAX);
+        strcpy(s->id1, (yyvsp[-2].str));
+        s->expr1 = (yyvsp[-1].expr);
+        free((yyvsp[-2].str));
+        (yyval.stmt) = s;
+    }
+#line 1983 "HotelStay.tab.c"
+    break;
+
+  case 35: /* checkout_stmt: CHECKOUT ID ';'  */
+#line 783 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_CHECKOUT);
+        strcpy(s->id1, (yyvsp[-1].str));
+        free((yyvsp[-1].str));
+        (yyval.stmt) = s;
+    }
+#line 1994 "HotelStay.tab.c"
+    break;
+
+  case 36: /* status_stmt: STATUS ';'  */
+#line 793 "HotelStay.y"
+    {
+        (yyval.stmt) = createStmt(STMT_STATUS);
+    }
+#line 2002 "HotelStay.tab.c"
+    break;
+
+  case 37: /* print_stmt: PRINT STRING ';'  */
+#line 800 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_PRINT_STR);
+        strcpy(s->id2, (yyvsp[-1].str));
+        free((yyvsp[-1].str));
+        (yyval.stmt) = s;
+    }
+#line 2013 "HotelStay.tab.c"
+    break;
+
+  case 38: /* print_stmt: PRINT expression ';'  */
+#line 807 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_PRINT_EXPR);
+        s->expr1 = (yyvsp[-1].expr);
+        (yyval.stmt) = s;
+    }
+#line 2023 "HotelStay.tab.c"
+    break;
+
+  case 39: /* reset_stmt: RESET ID ';'  */
+#line 816 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_RESET);
+        strcpy(s->id1, (yyvsp[-1].str));
+        free((yyvsp[-1].str));
+        (yyval.stmt) = s;
+    }
+#line 2034 "HotelStay.tab.c"
+    break;
+
+  case 40: /* make_stmt: MAKE ID ';'  */
+#line 826 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_MAKE);
+        strcpy(s->id1, (yyvsp[-1].str));
+        free((yyvsp[-1].str));
+        (yyval.stmt) = s;
+    }
+#line 2045 "HotelStay.tab.c"
+    break;
+
+  case 41: /* take_stmt: TAKE ID ';'  */
+#line 836 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_TAKE);
+        strcpy(s->id1, (yyvsp[-1].str));
+        free((yyvsp[-1].str));
+        (yyval.stmt) = s;
+    }
+#line 2056 "HotelStay.tab.c"
+    break;
+
+  case 42: /* assign_stmt: ID '=' expression ';'  */
+#line 846 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_ASSIGN);
+        strcpy(s->id1, (yyvsp[-3].str));
+        s->expr1 = (yyvsp[-1].expr);
+        free((yyvsp[-3].str));
+        (yyval.stmt) = s;
+    }
+#line 2068 "HotelStay.tab.c"
+    break;
+
+  case 43: /* when_stmt: WHEN '(' expression ')' statement  */
+#line 857 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_WHEN);
+        s->expr1 = (yyvsp[-2].expr);
+        s->body = (yyvsp[0].stmt);
+        s->elseBody = NULL;
+        (yyval.stmt) = s;
+    }
+#line 2080 "HotelStay.tab.c"
+    break;
+
+  case 44: /* when_stmt: WHEN '(' expression ')' statement OTHERWISE statement  */
+#line 865 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_WHEN);
+        s->expr1 = (yyvsp[-4].expr);
+        s->body = (yyvsp[-2].stmt);
+        s->elseBody = (yyvsp[0].stmt);
+        (yyval.stmt) = s;
+    }
+#line 2092 "HotelStay.tab.c"
+    break;
+
+  case 45: /* repeat_stmt: REPEAT '(' expression ')' statement  */
+#line 876 "HotelStay.y"
+    {
+        StmtNode *s = createStmt(STMT_REPEAT);
+        s->expr1 = (yyvsp[-2].expr);
+        s->body = (yyvsp[0].stmt);
+        (yyval.stmt) = s;
+    }
+#line 2103 "HotelStay.tab.c"
+    break;
+
+  case 46: /* stop_stmt: STOP ';'  */
+#line 886 "HotelStay.y"
+    {
+        (yyval.stmt) = createStmt(STMT_STOP);
+    }
+#line 2111 "HotelStay.tab.c"
+    break;
+
+  case 47: /* expression: expression EQ term  */
+#line 894 "HotelStay.y"
+                           { (yyval.expr) = createOpExpr(EXPR_EQ, (yyvsp[-2].expr), (yyvsp[0].expr)); }
+#line 2117 "HotelStay.tab.c"
+    break;
+
+  case 48: /* expression: expression NEQ term  */
+#line 895 "HotelStay.y"
+                           { (yyval.expr) = createOpExpr(EXPR_NEQ, (yyvsp[-2].expr), (yyvsp[0].expr)); }
+#line 2123 "HotelStay.tab.c"
+    break;
+
+  case 49: /* expression: expression '<' term  */
+#line 896 "HotelStay.y"
+                           { (yyval.expr) = createOpExpr(EXPR_LT, (yyvsp[-2].expr), (yyvsp[0].expr)); }
+#line 2129 "HotelStay.tab.c"
+    break;
+
+  case 50: /* expression: expression '>' term  */
+#line 897 "HotelStay.y"
+                           { (yyval.expr) = createOpExpr(EXPR_GT, (yyvsp[-2].expr), (yyvsp[0].expr)); }
+#line 2135 "HotelStay.tab.c"
+    break;
+
+  case 51: /* expression: expression LTE term  */
+#line 898 "HotelStay.y"
+                           { (yyval.expr) = createOpExpr(EXPR_LTE, (yyvsp[-2].expr), (yyvsp[0].expr)); }
+#line 2141 "HotelStay.tab.c"
+    break;
+
+  case 52: /* expression: expression GTE term  */
+#line 899 "HotelStay.y"
+                           { (yyval.expr) = createOpExpr(EXPR_GTE, (yyvsp[-2].expr), (yyvsp[0].expr)); }
+#line 2147 "HotelStay.tab.c"
+    break;
+
+  case 53: /* expression: expression '+' term  */
+#line 900 "HotelStay.y"
+                           { (yyval.expr) = createOpExpr(EXPR_ADD, (yyvsp[-2].expr), (yyvsp[0].expr)); }
+#line 2153 "HotelStay.tab.c"
+    break;
+
+  case 54: /* expression: expression '-' term  */
+#line 901 "HotelStay.y"
+                           { (yyval.expr) = createOpExpr(EXPR_SUB, (yyvsp[-2].expr), (yyvsp[0].expr)); }
+#line 2159 "HotelStay.tab.c"
+    break;
+
+  case 55: /* expression: term  */
+#line 902 "HotelStay.y"
+                           { (yyval.expr) = (yyvsp[0].expr); }
+#line 2165 "HotelStay.tab.c"
+    break;
+
+  case 56: /* term: term '*' factor  */
+#line 906 "HotelStay.y"
+                           { (yyval.expr) = createOpExpr(EXPR_MUL, (yyvsp[-2].expr), (yyvsp[0].expr)); }
+#line 2171 "HotelStay.tab.c"
+    break;
+
+  case 57: /* term: term '/' factor  */
+#line 907 "HotelStay.y"
+                           { (yyval.expr) = createOpExpr(EXPR_DIV, (yyvsp[-2].expr), (yyvsp[0].expr)); }
+#line 2177 "HotelStay.tab.c"
+    break;
+
+  case 58: /* term: factor  */
+#line 908 "HotelStay.y"
+                           { (yyval.expr) = (yyvsp[0].expr); }
+#line 2183 "HotelStay.tab.c"
+    break;
+
+  case 59: /* factor: NUMBER  */
+#line 912 "HotelStay.y"
+                           { (yyval.expr) = createNumExpr((yyvsp[0].num)); }
+#line 2189 "HotelStay.tab.c"
+    break;
+
+  case 60: /* factor: ID  */
+#line 913 "HotelStay.y"
+                           { (yyval.expr) = createVarExpr((yyvsp[0].str)); free((yyvsp[0].str)); }
+#line 2195 "HotelStay.tab.c"
+    break;
+
+  case 61: /* factor: '(' expression ')'  */
+#line 914 "HotelStay.y"
+                           { (yyval.expr) = (yyvsp[-1].expr); }
+#line 2201 "HotelStay.tab.c"
     break;
 
 
-#line 1665 "HotelStay.tab.c"
+#line 2205 "HotelStay.tab.c"
 
       default: break;
     }
@@ -1854,7 +2394,7 @@ yyreturnlab:
   return yyresult;
 }
 
-#line 512 "HotelStay.y"
+#line 917 "HotelStay.y"
 
 
 /* ---------------- C MAIN & ERROR HANDLERS ---------------- */

@@ -12,7 +12,7 @@ void yyerror(const char *s);
 %%
 
 [ \t\r]+                { /* Ignore whitespace */ }
-\n                      { /* Ignore newline or track lines */ }
+\n                      { /* Ignore newline */ }
 "//".*                  { /* Ignore single-line comments */ }
 "/*"([^*]|\*+[^*/])*\*+"/" { /* Ignore multi-line comments */ }
 
@@ -27,10 +27,24 @@ void yyerror(const char *s);
 "PRINT"                 { return PRINT; }
 "RESET"                 { return RESET; }
 
+"MAKE"                  { return MAKE; }
+"TAKE"                  { return TAKE; }
+"WHEN"                  { return WHEN; }
+"OTHERWISE"             { return OTHERWISE; }
+"REPEAT"                { return REPEAT; }
+"STOP"                  { return STOP; }
+
 "STANDARD"              { return STANDARD; }
 "DELUXE"                { return DELUXE; }
 "SUITE"                 { return SUITE; }
 "PRESIDENTIAL"          { return PRESIDENTIAL; }
+
+"=="                    { return EQ; }
+"!="                    { return NEQ; }
+"<="                    { return LTE; }
+">="                    { return GTE; }
+"<"                     { return '<'; }
+">"                     { return '>'; }
 
 [0-9]+                  {
                             yylval.num = atoi(yytext);
@@ -59,6 +73,8 @@ void yyerror(const char *s);
 "/"                     { return '/'; }
 "("                     { return '('; }
 ")"                     { return ')'; }
+"{"                     { return '{'; }
+"}"                     { return '}'; }
 
 .                       {
                             printf("[Lexical Error] Unrecognized character: '%s'\n", yytext);

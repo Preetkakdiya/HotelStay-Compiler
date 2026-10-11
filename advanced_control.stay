@@ -1,0 +1,41 @@
+// ==========================================================
+// HOTELSTAY ADVANCED FEATURES TEST: advanced_control.stay
+// Demonstrating MAKE, WHEN, OTHERWISE, REPEAT, and Comparisons
+// ==========================================================
+
+PRINT "=== ADVANCED CONTROL FLOW & PROGRAMMING TEST ===";
+
+// 1. Variable Declarations & Assignments
+MAKE stayDays;
+MAKE discountRate;
+MAKE counter;
+
+stayDays = 5;
+
+// 2. Conditional Statement (WHEN / OTHERWISE)
+WHEN (stayDays >= 4) {
+    PRINT "Long stay detected! Applying VIP 20% Discount";
+    discountRate = 20;
+} OTHERWISE {
+    PRINT "Standard stay detected. Applying 5% Discount";
+    discountRate = 5;
+}
+
+// 3. Guest Booking using computed variables
+GUEST Vikram;
+ROOM Vikram SUITE;
+NIGHTS Vikram stayDays;
+DISCOUNT Vikram discountRate;
+
+// 4. Iterative Loop (REPEAT)
+PRINT "Adding multiple daily spa sessions using REPEAT loop...";
+counter = 1;
+REPEAT (counter <= 3) {
+    AMENITY Vikram "Daily Spa Pass" 1000;
+    counter = counter + 1;
+}
+
+// 5. Status and Checkout
+STATUS;
+CHECKOUT Vikram;
+STATUS;

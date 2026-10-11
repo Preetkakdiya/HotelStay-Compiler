@@ -53,5 +53,12 @@ echo.
 HotelStay.exe error_demo.stay
 
 echo.
+echo ========================================================
+echo       RUNNING ADVANCED CONTROL FLOW: advanced_control.stay
+echo ========================================================
+echo.
+HotelStay.exe advanced_control.stay
+
+echo.
 echo Build and Execution complete!
 pause

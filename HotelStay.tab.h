@@ -64,13 +64,24 @@ extern int yydebug;
     STATUS = 265,                  /* STATUS  */
     PRINT = 266,                   /* PRINT  */
     RESET = 267,                   /* RESET  */
-    STANDARD = 268,                /* STANDARD  */
-    DELUXE = 269,                  /* DELUXE  */
-    SUITE = 270,                   /* SUITE  */
-    PRESIDENTIAL = 271,            /* PRESIDENTIAL  */
-    NUMBER = 272,                  /* NUMBER  */
-    ID = 273,                      /* ID  */
-    STRING = 274                   /* STRING  */
+    MAKE = 268,                    /* MAKE  */
+    TAKE = 269,                    /* TAKE  */
+    WHEN = 270,                    /* WHEN  */
+    OTHERWISE = 271,               /* OTHERWISE  */
+    REPEAT = 272,                  /* REPEAT  */
+    STOP = 273,                    /* STOP  */
+    STANDARD = 274,                /* STANDARD  */
+    DELUXE = 275,                  /* DELUXE  */
+    SUITE = 276,                   /* SUITE  */
+    PRESIDENTIAL = 277,            /* PRESIDENTIAL  */
+    NUMBER = 278,                  /* NUMBER  */
+    ID = 279,                      /* ID  */
+    STRING = 280,                  /* STRING  */
+    LOWER_THAN_OTHERWISE = 281,    /* LOWER_THAN_OTHERWISE  */
+    EQ = 282,                      /* EQ  */
+    NEQ = 283,                     /* NEQ  */
+    LTE = 284,                     /* LTE  */
+    GTE = 285                      /* GTE  */
   };
   typedef enum yytokentype yytoken_kind_t;
 #endif
@@ -79,12 +90,14 @@ extern int yydebug;
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
 union YYSTYPE
 {
-#line 303 "HotelStay.y"
+#line 570 "HotelStay.y"
 
     int num;
     char *str;
+    struct ExprNode *expr;
+    struct StmtNode *stmt;
 
-#line 88 "HotelStay.tab.h"
+#line 101 "HotelStay.tab.h"
 
 };
 typedef union YYSTYPE YYSTYPE;

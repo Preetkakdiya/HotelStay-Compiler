@@ -22,17 +22,14 @@ NIGHTS Rohan 2;
 NIGHTS Sarthak 2;
 
 // 4. Folio Services & Amenities (Cost in Rs.)
-AMENITY Aarav SPA 2500;
 AMENITY Aarav DINING 3200;
 AMENITY Aarav "Airport Luxury Pickup" 1500;
 
-AMENITY Priya SPA 1800;
 AMENITY Priya CAB 600;
+AMENITY Priya "Breakfast Buffet" 850;
 
 AMENITY Rohan LAUNDRY 350;
-AMENITY Rohan GYM 500;
 
-AMENITY Sarthak Spa 3000;
 AMENITY Sarthak Dining 3500;
 AMENITY Sarthak "Airport Luxury Pickup" 1500;
 

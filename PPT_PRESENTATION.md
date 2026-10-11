@@ -45,7 +45,7 @@
 1. `GUEST` — Declares and registers a guest in the symbol table.
 2. `ROOM` — Assigns room category (`STANDARD`, `DELUXE`, `SUITE`, `PRESIDENTIAL`).
 3. `NIGHTS` — Sets duration of stay (supports arithmetic expressions like `(2 + 1)`).
-4. `AMENITY` — Adds folio services (Spa, Dining, Airport Pickup) with cost.
+4. `AMENITY` — Adds folio services (Buffet, Dining, Airport Pickup) with cost.
 5. `DISCOUNT` — Applies promotional percentage discount (0%–100%).
 6. `TAX` — Configures customized GST/VAT rate (default: 12%).
 7. `CHECKOUT` — Computes net balance and prints an itemized tax invoice.
@@ -113,7 +113,7 @@
 GUEST Aarav;
 ROOM Aarav SUITE;
 NIGHTS Aarav 3;
-AMENITY Aarav SPA 2500;
+AMENITY Aarav BUFFET 2500;
 AMENITY Aarav DINING 3200;
 DISCOUNT Aarav 10;
 TAX Aarav 18;

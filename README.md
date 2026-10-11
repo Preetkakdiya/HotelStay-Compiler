@@ -29,7 +29,7 @@ The faculty requires at least **7 custom keywords** for a 3-member group. **Hote
 | `GUEST` | Registers a new guest into the symbol table | `GUEST Aarav;` |
 | `ROOM` | Assigns room category (`STANDARD`, `DELUXE`, `SUITE`, `PRESIDENTIAL`) | `ROOM Aarav SUITE;` |
 | `NIGHTS` | Sets stay duration in nights (supports arithmetic expressions) | `NIGHTS Aarav 3;` |
-| `AMENITY` | Adds amenity/folio charges (Spa, Dining, Cab, etc.) | `AMENITY Aarav SPA 2500;` |
+| `AMENITY` | Adds amenity/folio charges (Buffet, Dining, Cab, etc.) | `AMENITY Aarav BUFFET 2500;` |
 | `DISCOUNT` | Applies percentage promotional discount | `DISCOUNT Aarav 10;` |
 | `TAX` | Configures GST/tax percentage (default: 12%) | `TAX Aarav 18;` |
 | `CHECKOUT` | Computes final bill and generates a formatted tax invoice | `CHECKOUT Aarav;` |

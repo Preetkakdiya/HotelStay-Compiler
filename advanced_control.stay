@@ -28,10 +28,10 @@ NIGHTS Vikram stayDays;
 DISCOUNT Vikram discountRate;
 
 // 4. Iterative Loop (REPEAT)
-PRINT "Adding multiple daily spa sessions using REPEAT loop...";
+PRINT "Adding multiple daily gym sessions using REPEAT loop...";
 counter = 1;
 REPEAT (counter <= 3) {
-    AMENITY Vikram "Daily Spa Pass" 1000;
+    AMENITY Vikram "Daily Gym Pass" 1000;
     counter = counter + 1;
 }
 

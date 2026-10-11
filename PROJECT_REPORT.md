@@ -78,7 +78,7 @@ HotelStay provides high-level grammar and custom keywords tailored for hotel roo
 | `GUEST` | Declaration | Enters new guest into the symbol table |
 | `ROOM` | Configuration | Sets room category and default nightly tariff |
 | `NIGHTS` | Configuration | Sets duration of stay; evaluates arithmetic expressions |
-| `AMENITY` | Folio Charge | Adds auxiliary services (Spa, Dining, Cab, etc.) with cost |
+| `AMENITY` | Folio Charge | Adds auxiliary services (Buffet, Dining, Cab, etc.) with cost |
 | `DISCOUNT` | Pricing Rule | Applies percentage deduction on gross bill (0% to 100%) |
 | `TAX` | Pricing Rule | Configures GST/VAT percentage |
 | `CHECKOUT` | Execution | Finalizes billing, applies deductions/taxes, prints tax invoice |
@@ -171,11 +171,11 @@ NIGHTS Aarav 3;
 NIGHTS Priya (2 + 1);
 NIGHTS Rohan 2;
 
-AMENITY Aarav SPA 2500;
+AMENITY Aarav BUFFET 2500;
 AMENITY Aarav DINING 3200;
 AMENITY Aarav "Airport Luxury Pickup" 1500;
 
-AMENITY Priya SPA 1800;
+AMENITY Priya "Breakfast Buffet" 1800;
 AMENITY Priya CAB 600;
 
 AMENITY Rohan LAUNDRY 350;
@@ -212,10 +212,10 @@ STATUS;
 [Stay Updated] Aarav stay duration updated to 3 night(s).
 [Stay Updated] Priya stay duration updated to 3 night(s).
 [Stay Updated] Rohan stay duration updated to 2 night(s).
-[Amenity Added] Added 'SPA' (Rs.2500) to Aarav's folio.
+[Amenity Added] Added 'BUFFET' (Rs.2500) to Aarav's folio.
 [Amenity Added] Added 'DINING' (Rs.3200) to Aarav's folio.
 [Amenity Added] Added 'Airport Luxury Pickup' (Rs.1500) to Aarav's folio.
-[Amenity Added] Added 'SPA' (Rs.1800) to Priya's folio.
+[Amenity Added] Added 'Breakfast Buffet' (Rs.1800) to Priya's folio.
 [Amenity Added] Added 'CAB' (Rs.600) to Priya's folio.
 [Amenity Added] Added 'LAUNDRY' (Rs.350) to Rohan's folio.
 [Discount Applied] 10% promotional discount applied for Aarav.
@@ -256,7 +256,7 @@ STATUS;
 ------------------------------------------------------------
   Room Charges  : 3 nights x Rs.8000 = Rs.24000     
   Additional Amenities & Folio Services:
-    * SPA                       : Rs.2500
+    * BUFFET                    : Rs.2500
     * DINING                    : Rs.3200
     * Airport Luxury Pickup     : Rs.1500
   Amenities Total Charges      : Rs.7200      
@@ -280,7 +280,7 @@ STATUS;
 ------------------------------------------------------------
   Room Charges  : 3 nights x Rs.4500 = Rs.13500     
   Additional Amenities & Folio Services:
-    * SPA                       : Rs.1800
+    * Breakfast Buffet          : Rs.1800
     * CAB                       : Rs.600
   Amenities Total Charges      : Rs.2400      
 ------------------------------------------------------------

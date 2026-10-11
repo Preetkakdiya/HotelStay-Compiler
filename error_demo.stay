@@ -1,0 +1,28 @@
+// ==========================================================
+// HOTELSTAY ERROR HANDLING & VALIDATION TEST: error_demo.stay
+// ==========================================================
+
+PRINT "--- Commencing Robustness & Error Handling Tests ---";
+
+// 1. Valid Guest Registration
+GUEST Simran;
+
+// 2. Semantic Error: Duplicate Registration
+GUEST Simran;
+
+// 3. Semantic Error: Operation on Unregistered Guest
+ROOM UnknownGuest DELUXE;
+
+// 4. Semantic Error: Invalid Stay Duration (Zero or Negative)
+NIGHTS Simran 0;
+
+// 5. Semantic Error: Out of Range Discount (> 100%)
+DISCOUNT Simran 150;
+
+// 6. Valid setup and checkout
+NIGHTS Simran 2;
+DISCOUNT Simran 15;
+CHECKOUT Simran;
+
+// 7. Semantic Warning: Checking out an already checked-out guest
+CHECKOUT Simran;

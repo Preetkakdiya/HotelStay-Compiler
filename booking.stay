@@ -1,0 +1,60 @@
+// ==========================================================
+// HOTELSTAY LANGUAGE DEMONSTRATION FILE: booking.stay
+// ==========================================================
+
+PRINT "Welcome to Grand Horizon Hotel - Automated Booking Engine";
+
+// 1. Registering Guests
+GUEST Aarav;
+GUEST Priya;
+GUEST Rohan;
+GUEST Sarthak;
+// 2. Room Allocations
+ROOM Aarav SUITE;
+ROOM Priya DELUXE;
+ROOM Rohan STANDARD;
+ROOM Sarthak PRESIDENTIAL;
+
+// 3. Stay Duration (in nights)
+NIGHTS Aarav 3;
+NIGHTS Priya (2 + 1); // Arithmetic expression supported!
+NIGHTS Rohan 2;
+NIGHTS Sarthak 2;
+
+// 4. Folio Services & Amenities (Cost in Rs.)
+AMENITY Aarav SPA 2500;
+AMENITY Aarav DINING 3200;
+AMENITY Aarav "Airport Luxury Pickup" 1500;
+
+AMENITY Priya SPA 1800;
+AMENITY Priya CAB 600;
+
+AMENITY Rohan LAUNDRY 350;
+AMENITY Rohan GYM 500;
+
+AMENITY Sarthak Spa 3000;
+AMENITY Sarthak Dining 3500;
+AMENITY Sarthak "Airport Luxury Pickup" 1500;
+
+
+
+// 5. Promotional Discounts & Custom Tax Configurations
+DISCOUNT Aarav 10;   // 10% Loyalty Discount
+TAX Aarav 18;        // 18% Luxury GST
+
+DISCOUNT Priya 5;    // 5% Early Bird Discount
+TAX Priya 12;        // 12% Standard GST
+
+DISCOUNT Sarthak 15;   // 15% Loyalty Discount
+TAX Sarthak 18;        // 18% Luxury GST
+
+// 6. Check Current Hotel Occupancy
+STATUS;
+
+// 7. Check-out and Invoice Generation
+CHECKOUT Aarav;
+CHECKOUT Priya;
+CHECKOUT Sarthak;
+
+// 8. Re-check Hotel Status (Aarav & Priya Checked Out, Rohan Occupied)
+STATUS;

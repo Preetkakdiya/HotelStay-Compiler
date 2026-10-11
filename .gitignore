@@ -1,0 +1,7 @@
+# Compiler build binaries and large tools
+tools/
+*.exe
+
+# Object files and temporary logs
+*.o
+*.log

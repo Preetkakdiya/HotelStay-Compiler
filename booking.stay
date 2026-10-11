@@ -36,7 +36,16 @@ AMENITY Sarthak "Airport Luxury Pickup" 1500;
 
 
 // 5. Promotional Discounts & Custom Tax Configurations
-DISCOUNT Aarav 10;   // 10% Loyalty Discount
+MAKE aaravStay;
+aaravStay = 3;
+
+WHEN (aaravStay >= 3) {
+    PRINT "Long stay detected (>= 3 nights): Applying 10% VIP Discount for Aarav";
+    DISCOUNT Aarav 10;
+} OTHERWISE {
+    PRINT "Short stay detected (< 3 nights): Applying 5% Discount for Aarav";
+    DISCOUNT Aarav 5;
+}
 TAX Aarav 18;        // 18% Luxury GST
 
 DISCOUNT Priya 5;    // 5% Early Bird Discount

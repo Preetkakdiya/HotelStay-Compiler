@@ -610,27 +610,23 @@ program:
         printf("           HOTELSTAY COMPILATION & EXECUTION COMPLETE       \n");
         printf("============================================================\n");
     }
+    | /* empty */
+    {
+        $$ = NULL;
+    }
     ;
 
 statements:
     statements statement
     {
-        if ($1 == NULL) {
-            $$ = $2;
-        } else {
-            StmtNode *curr = $1;
-            while (curr->next != NULL) curr = curr->next;
-            curr->next = $2;
-            $$ = $1;
-        }
+        StmtNode *curr = $1;
+        while (curr->next != NULL) curr = curr->next;
+        curr->next = $2;
+        $$ = $1;
     }
     | statement
     {
         $$ = $1;
-    }
-    | /* empty */
-    {
-        $$ = NULL;
     }
     ;
 
@@ -659,6 +655,12 @@ statement_block:
     {
         StmtNode *s = createStmt(STMT_BLOCK);
         s->body = $2;
+        $$ = s;
+    }
+    | '{' '}'
+    {
+        StmtNode *s = createStmt(STMT_BLOCK);
+        s->body = NULL;
         $$ = s;
     }
     ;

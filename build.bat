@@ -1,64 +1,50 @@
 @echo off
 setlocal
-echo ========================================================
-echo       BUILDING AND COMPILING HOTELSTAY COMPILER
-echo ========================================================
 
-:: Close any running instance of HotelStay.exe to prevent Windows "Permission Denied" lock
+:: Close any open instance to prevent file-lock
 taskkill /f /im HotelStay.exe >nul 2>nul
 
-:: Add portable tools folder to PATH
+:: Set local compiler toolchain
 set "PATH=%~dp0tools\w64devkit\bin;C:\Windows\System32;%PATH%"
 
-echo [Step 1] Running Bison parser generator (bison)...
+echo ========================================================
+echo       COMPILING HOTELSTAY COMPILER (LEX ^& YACC)
+echo ========================================================
+echo [1/3] Running Bison...
 bison -d HotelStay.y
 if %errorlevel% neq 0 (
-    echo [ERROR] Bison compilation failed!
+    echo [ERROR] Bison failed!
     pause
     exit /b 1
 )
 
-echo [Step 2] Running Flex lexical analyzer generator (flex)...
+echo [2/3] Running Flex...
 flex HotelStay.l
 if %errorlevel% neq 0 (
-    echo [ERROR] Flex compilation failed!
+    echo [ERROR] Flex failed!
     pause
     exit /b 1
 )
 
-echo [Step 3] Compiling C binaries with GCC...
+echo [3/3] Compiling with GCC...
 gcc HotelStay.tab.c lex.yy.c -o HotelStay.exe
 if %errorlevel% neq 0 (
-    echo.
-    echo [ERROR] GCC compilation failed!
-    echo If you see "Permission denied", close any open command windows running HotelStay.exe.
+    echo [ERROR] GCC failed!
     pause
     exit /b 1
 )
 
 echo.
-echo [SUCCESS] HotelStay.exe compiled successfully!
+echo [SUCCESS] Compiled successfully into HotelStay.exe!
 echo.
 echo ========================================================
-echo       RUNNING HOTELSTAY ON DEMO SCRIPT: booking.stay
+echo              RUNNING PROGRAM: booking.stay
 echo ========================================================
 echo.
 HotelStay.exe booking.stay
 
 echo.
 echo ========================================================
-echo       RUNNING HOTELSTAY ON ERROR TEST: error_demo.stay
+echo Program Finished! Press any key to exit.
 echo ========================================================
-echo.
-HotelStay.exe error_demo.stay
-
-echo.
-echo ========================================================
-echo       RUNNING ADVANCED CONTROL FLOW: advanced_control.stay
-echo ========================================================
-echo.
-HotelStay.exe advanced_control.stay
-
-echo.
-echo Build and Execution complete!
 pause

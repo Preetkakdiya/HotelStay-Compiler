@@ -9,6 +9,7 @@ PRINT "=== ADVANCED CONTROL FLOW & PROGRAMMING TEST ===";
 MAKE stayDays;
 MAKE discountRate;
 MAKE counter;
+MAKE bonusPoints;
 
 stayDays = 5;
 
@@ -27,15 +28,21 @@ ROOM Vikram SUITE;
 NIGHTS Vikram stayDays;
 DISCOUNT Vikram discountRate;
 
-// 4. Iterative Loop (REPEAT)
-PRINT "Adding multiple daily gym sessions using REPEAT loop...";
+// 4. One-time payable Gym Access (Rs. 200)
+AMENITY Vikram "Gym Access" 200;
+
+// 5. Demonstrating REPEAT Loop (Accumulating loyalty reward points)
+PRINT "Calculating VIP loyalty reward points using REPEAT loop...";
 counter = 1;
+bonusPoints = 0;
 REPEAT (counter <= 3) {
-    AMENITY Vikram "Daily Gym Pass" 1000;
+    bonusPoints = bonusPoints + 100;
     counter = counter + 1;
 }
+PRINT "VIP Loyalty Points earned:";
+PRINT bonusPoints;
 
-// 5. Status and Checkout
+// 6. Status and Final Checkout
 STATUS;
 CHECKOUT Vikram;
 STATUS;
